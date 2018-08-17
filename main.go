@@ -19,8 +19,12 @@ const (
 )
 
 var (
-	listenAddr string
-	healthy    int32
+	Version      string = ""
+	GitTag       string = ""
+	GitCommit    string = ""
+	GitTreeState string = ""
+	listenAddr   string
+	healthy      int32
 )
 
 func main() {
@@ -28,6 +32,13 @@ func main() {
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
+
+	logger.Println("Simple go server")
+	logger.Println("Version:", Version)
+	logger.Println("GitTag:", GitTag)
+	logger.Println("GitCommit:", GitCommit)
+	logger.Println("GitTreeState:", GitTreeState)
+
 	logger.Println("Server is starting...")
 
 	router := http.NewServeMux()
