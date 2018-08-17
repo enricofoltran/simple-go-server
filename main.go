@@ -18,17 +18,29 @@ const (
 	requestIDKey key = 0
 )
 
+// build info
 var (
 	Version      string = ""
 	GitTag       string = ""
 	GitCommit    string = ""
 	GitTreeState string = ""
-	listenAddr   string
-	healthy      int32
 )
+
+// flags
+var (
+	listenAddr string
+	rps        int
+	burst      int
+	timeout    time.Duration
+)
+
+var healthy int32
 
 func main() {
 	flag.StringVar(&listenAddr, "listen-addr", ":5000", "server listen address")
+	flag.IntVar(&rps, "rps", 425, "requests per second throttling limit")
+	flag.IntVar(&burst, "burst", 10, "concurrently handled requests before queueing")
+	flag.DurationVar(&timeout, "timeout", 75*time.Millisecond, "time after which quequed requests are dropped")
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
@@ -40,6 +52,7 @@ func main() {
 	logger.Println("GitTreeState:", GitTreeState)
 
 	logger.Println("Server is starting...")
+	logger.Printf("Settings are: rps=%v burst=%v timeout=%v", rps, burst, timeout)
 
 	router := http.NewServeMux()
 	router.Handle("/", index())
@@ -50,8 +63,12 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:         listenAddr,
-		Handler:      tracing(nextRequestID)(logging(logger)(router)),
+		Addr: listenAddr,
+		Handler: throttling(rps, burst, timeout)(
+			tracing(nextRequestID)(
+				logging(logger)(router),
+			),
+		),
 		ErrorLog:     logger,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -91,6 +108,10 @@ func index() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -137,4 +158,42 @@ func tracing(nextRequestID func() string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// adapted from https://rodaine.com/2017/05/x-files-time-rate-golang/
+func throttling(rps, burst int, timeout time.Duration) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		limiter, _ := throttler(rps, burst)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			timer := time.NewTimer(timeout)
+			select {
+			case <-limiter:
+				timer.Stop()
+			case <-timer.C:
+				http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func throttler(rps, burst int) (c chan time.Time, cancel func()) {
+	c = make(chan time.Time, burst)
+	for i := 0; i < burst; i++ {
+		c <- time.Now()
+	}
+
+	tick := time.NewTicker(time.Second / time.Duration(rps))
+	go func() {
+		for t := range tick.C {
+			select {
+			case c <- t:
+			default:
+			}
+		}
+		close(c)
+	}()
+
+	return c, tick.Stop
 }
