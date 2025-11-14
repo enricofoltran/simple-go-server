@@ -1,2 +1,6 @@
 bin/
 simple-go-server
+
+# Test coverage artifacts
+coverage.out
+coverage.html
