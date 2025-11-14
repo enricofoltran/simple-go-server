@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Documentation
+*.md
+README.md
+LICENSE
+
+# Build files
+Makefile
+versioning.mk
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
+*_test.go
+coverage.out
+
+# Go
+go.sum
