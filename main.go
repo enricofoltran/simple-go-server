@@ -40,12 +40,8 @@ const (
 )
 
 var (
-	Version      string
-	GitTag       string
-	GitCommit    string
-	GitTreeState string
-	listenAddr   string
-	healthy      int32 // atomic access only - indicates server health status (1=healthy, 0=unhealthy)
+	listenAddr string
+	healthy    int32 // atomic access only - indicates server health status (1=healthy, 0=unhealthy)
 )
 
 func main() {
@@ -53,12 +49,6 @@ func main() {
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
-
-	logger.Println("Simple go server")
-	logger.Println("Version:", Version)
-	logger.Println("GitTag:", GitTag)
-	logger.Println("GitCommit:", GitCommit)
-	logger.Println("GitTreeState:", GitTreeState)
 
 	logger.Println("Server is starting...")
 

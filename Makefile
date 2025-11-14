@@ -1,6 +1,7 @@
 DOCKER_REGISTRY   ?= docker.io
 IMAGE_PREFIX      ?= enricofoltran
 SHORT_NAME        ?= simple-go-server
+IMAGE             := ${DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SHORT_NAME}:latest
 
 # build options
 GO        ?= go
@@ -57,4 +58,23 @@ check: lint test
 run:
 	$(GO) run main.go
 
-include versioning.mk
+.PHONY: check-docker
+check-docker:
+	@if [ -z $$(which docker) ]; then \
+	  echo "Missing 'docker' client which is required for development"; \
+	  exit 2; \
+	fi
+
+.PHONY: docker-binary
+docker-binary: BINDIR = $(CURDIR)/rootfs
+docker-binary: GOFLAGS += -a -installsuffix cgo
+docker-binary:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -o $(BINDIR)/$(SHORT_NAME) $(GOFLAGS) -tags '$(TAGS)' -ldflags '$(LDFLAGS)'
+
+.PHONY: docker-build
+docker-build: check-docker docker-binary
+	docker build --rm -t ${IMAGE} rootfs
+
+.PHONY: docker-push
+docker-push: docker-build
+	docker push ${IMAGE}
